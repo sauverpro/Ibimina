@@ -21,22 +21,27 @@ const SecretaryDashboard = () => {
   const [approveLoading, setApproveLoading] = useState(null);
   const [recording, setRecording] = useState(false);
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
-    try {
-      const fundRes = await getMyFund();
-      setFund(fundRes.data);
-      const [txRes, membersRes, actRes] = await Promise.all([
-        getFundTransactions(fundRes.data._id),
-        getFundMembers(fundRes.data._id),
-        getFundActivities(fundRes.data._id),
-      ]);
-      setTransactions(txRes.data);
-      setMembers(membersRes.data);
-      setActivities(actRes.data);
-    } catch (e) {}
-    setLoading(false);
-  }, []);
+ const fetchAll = useCallback(async () => {
+  setLoading(true);
+  try {
+    const fundRes = await getMyFund();
+    setFund(fundRes.data);
+    const [txRes, membersRes, actRes] = await Promise.all([
+      getFundTransactions(fundRes.data._id),
+      getFundMembers(fundRes.data._id),
+      getFundActivities(fundRes.data._id),
+    ]);
+    setTransactions(txRes.data || []);
+    setMembers(membersRes.data || []);
+    setActivities(actRes.data || []);
+  } catch (e) {
+    console.error('fetchAll error:', e);
+    setTransactions([]);
+    setMembers([]);
+    setActivities([]);
+  }
+  setLoading(false);
+}, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
