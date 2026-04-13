@@ -4,7 +4,7 @@ import { StatCard, Modal, Alert, ActivityFeed, Badge, LoadingPage } from '../../
 import { getFunds, createFund, deleteFund, getAllUsers, getGlobalActivities } from '../../utils/api';
 import {
   LayoutDashboard, Folder, Users, Activity,
-  Plus, Trash2, RefreshCw, DollarSign, TrendingUp, Shield
+  Plus, Trash2, RefreshCw, DollarSign, TrendingUp, Shield, ClipboardList
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -15,11 +15,13 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [actLoading, setActLoading] = useState(false);
   const [showCreateFund, setShowCreateFund] = useState(false);
-  const [fundForm, setFundForm] = useState({ name: '', presidentEmail: '' });
+  const [fundForm, setFundForm] = useState({ name: '', presidentEmail: '', presidentName: '', presidentPhone: '', presidentPassword: '' });
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(null);
+  const [requests, setRequests] = useState([]);
+  const [reqLoading, setReqLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -47,6 +49,21 @@ const AdminDashboard = () => {
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { if (tab === 'activity') fetchActivities(); }, [tab, fetchActivities]);
+
+  const fetchRequests = useCallback(async () => {
+  setReqLoading(true);
+  try {
+    const fundsRes = await getFunds();
+    const allRequests = [];
+    for (const fund of fundsRes.data) {
+      const txRes = await getFundTransactions(fund._id);
+      const pending = txRes.data.filter(t => t.status === 'pending');
+      pending.forEach(t => allRequests.push({ ...t, fundName: fund.name }));
+    }
+    setRequests(allRequests);
+  } catch (e) {}
+  setReqLoading(false);
+}, []);
 
   const handleCreateFund = async (e) => {
     e.preventDefault();
@@ -78,16 +95,17 @@ const AdminDashboard = () => {
   const totalContributions = funds.reduce((s, f) => s + (f.totalContributions || 0), 0);
 
   const navItems = [
-    {
-      label: 'Navigation',
-      items: [
-        { label: 'Overview', icon: <LayoutDashboard size={17} />, active: tab === 'overview', onClick: () => setTab('overview') },
-        { label: 'Funds', icon: <Folder size={17} />, active: tab === 'funds', onClick: () => setTab('funds') },
-        { label: 'Users', icon: <Users size={17} />, active: tab === 'users', onClick: () => setTab('users') },
-        { label: 'Activity Log', icon: <Activity size={17} />, active: tab === 'activity', onClick: () => setTab('activity') },
-      ]
-    }
-  ];
+  {
+    label: 'Navigation',
+    items: [
+      { label: 'Overview', icon: <LayoutDashboard size={17} />, active: tab === 'overview', onClick: () => setTab('overview') },
+      { label: 'Funds', icon: <Folder size={17} />, active: tab === 'funds', onClick: () => setTab('funds') },
+      { label: 'Users', icon: <Users size={17} />, active: tab === 'users', onClick: () => setTab('users') },
+      { label: 'Requests', icon: <ClipboardList size={17} />, active: tab === 'requests', onClick: () => setTab('requests') },
+      { label: 'Activity Log', icon: <Activity size={17} />, active: tab === 'activity', onClick: () => setTab('activity') },
+    ]
+  }
+];
 
   if (loading) return (
     <div className="app-layout">
@@ -311,37 +329,104 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {showCreateFund && (
-        <Modal
-          title="Create New Fund"
-          subtitle="Set up a new community savings fund"
-          onClose={() => { setShowCreateFund(false); setFormError(''); setFormSuccess(''); }}
-        >
-          <form onSubmit={handleCreateFund}>
-            {formError && <Alert type="error">{formError}</Alert>}
-            {formSuccess && <Alert type="success">{formSuccess}</Alert>}
-            <div className="form-group">
-              <label className="form-label">Fund Name *</label>
-              <input className="form-input" placeholder="e.g. Kigali Savings Circle"
-                value={fundForm.name} onChange={e => setFundForm({ ...fundForm, name: e.target.value })} required />
-            </div>
-            <div className="form-group">
-              <label className="form-label">President Email (Optional)</label>
-              <input className="form-input" type="email" placeholder="president@email.com"
-                value={fundForm.presidentEmail} onChange={e => setFundForm({ ...fundForm, presidentEmail: e.target.value })} />
-              <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '6px', fontFamily: 'var(--font-mono)' }}>
-                The user must already be registered in the system
-              </div>
-            </div>
-            <div className="modal-actions">
-              <button type="button" className="btn btn-outline" onClick={() => setShowCreateFund(false)}>Cancel</button>
-              <button type="submit" className="btn btn-primary" disabled={creating}>
-                {creating ? 'Creating...' : <><Plus size={15} /> Create Fund</>}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
+     {showCreateFund && (
+  <Modal
+    title="Create New Fund"
+    subtitle="Set up a new community savings fund"
+    onClose={() => { setShowCreateFund(false); setFormError(''); setFormSuccess(''); }}
+  >
+    <form onSubmit={handleCreateFund}>
+      {formError && <Alert type="error">{formError}</Alert>}
+      {formSuccess && <Alert type="success">{formSuccess}</Alert>}
+      <div className="form-group">
+        <label className="form-label">Fund Name *</label>
+        <input className="form-input" placeholder="e.g. Kigali Savings Circle"
+          value={fundForm.name} onChange={e => setFundForm({ ...fundForm, name: e.target.value })} required />
+      </div>
+      <div style={{ borderTop: '1px solid var(--border-soft)', marginTop: '8px', paddingTop: '16px' }}>
+        <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+          President Details (Optional)
+        </div>
+        <div className="form-group">
+          <label className="form-label">President Full Name</label>
+          <input className="form-input" placeholder="John Doe"
+            value={fundForm.presidentName} onChange={e => setFundForm({ ...fundForm, presidentName: e.target.value })} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">President Email</label>
+          <input className="form-input" type="email" placeholder="president@email.com"
+            value={fundForm.presidentEmail} onChange={e => setFundForm({ ...fundForm, presidentEmail: e.target.value })} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">President Phone</label>
+          <input className="form-input" placeholder="+250 7XX XXX XXX"
+            value={fundForm.presidentPhone} onChange={e => setFundForm({ ...fundForm, presidentPhone: e.target.value })} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">President Password</label>
+          <input className="form-input" placeholder="Default: ibimina123"
+            value={fundForm.presidentPassword} onChange={e => setFundForm({ ...fundForm, presidentPassword: e.target.value })} />
+        </div>
+      </div>
+      <div className="modal-actions">
+        <button type="button" className="btn btn-outline" onClick={() => setShowCreateFund(false)}>Cancel</button>
+        <button type="submit" className="btn btn-primary" disabled={creating}>
+          {creating ? 'Creating...' : <><Plus size={15} /> Create Fund</>}
+        </button>
+      </div>
+    </form>
+  </Modal>
+)}
+{tab === 'requests' && (
+  <div className="card">
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700 }}>
+        All Pending Requests
+      </h3>
+      <button className="btn btn-outline btn-sm" onClick={fetchRequests}>
+        <RefreshCw size={13} /> Refresh
+      </button>
+    </div>
+    {reqLoading ? <LoadingPage /> : requests.length === 0 ? (
+      <div className="empty-state">
+        <div className="empty-icon">✅</div>
+        <div className="empty-title">No pending requests</div>
+        <div className="empty-sub">All requests have been processed</div>
+      </div>
+    ) : (
+      <div className="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Member</th>
+              <th>Fund</th>
+              <th>Type</th>
+              <th>Amount</th>
+              <th>Reason</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {requests.map(tx => (
+              <tr key={tx._id}>
+                <td>{tx.member?.name}</td>
+                <td style={{ color: 'var(--gold)', fontFamily: 'var(--font-mono)', fontSize: '12px' }}>{tx.fundName}</td>
+                <td><Badge status={tx.type} /></td>
+                <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--gold)', fontWeight: 600 }}>
+                  {tx.amount?.toLocaleString()} RWF
+                </td>
+                <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{tx.reason || '—'}</td>
+                <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
+                  {new Date(tx.createdAt).toLocaleDateString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </div>
+)}
     </div>
   );
 };

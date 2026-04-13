@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from '../../components/sidebar';
 import { StatCard, Modal, Alert, FundHeader, Badge, PaymentMethodSelector, LoadingPage } from '../../components/shared';
-import { getMyFund, getMyTransactions, contribute, withdrawRequest, updateProfile } from '../../utils/api';
 import { useAuth } from '../../context/authcontext';
 import {
   User, Home, ArrowDownCircle, ArrowUpCircle, History,
   DollarSign, TrendingUp, Camera, Save
 } from 'lucide-react';
+import { getMyFund, getMyTransactions, contribute, withdrawRequest, updateProfile, loanRequest } from '../../utils/api';
 
 const MemberDashboard = () => {
   const { user, refreshUser } = useAuth();
@@ -17,7 +17,7 @@ const MemberDashboard = () => {
   const [showContribute, setShowContribute] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [contribForm, setContribForm] = useState({ amount: '', method: 'MTN Mobile Money' });
-  const [withdrawForm, setWithdrawForm] = useState({ amount: '', reason: '' });
+  const [withdrawForm, setWithdrawForm] = useState({ amount: '', reason: '', loanDuration: '' });
   const [profileForm, setProfileForm] = useState({
     name: user?.name || '', phone: user?.phone || '',
     age: user?.age || '', gender: user?.gender || '', photo: user?.photo || ''
@@ -66,21 +66,26 @@ const MemberDashboard = () => {
   };
 
   const handleWithdraw = async (e) => {
-    e.preventDefault();
-    setFormError(''); setFormSuccess('');
-    if (!withdrawForm.amount || isNaN(withdrawForm.amount)) { setFormError('Enter a valid amount'); return; }
-    setSubmitting(true);
-    try {
-      await withdrawRequest({ amount: Number(withdrawForm.amount), reason: withdrawForm.reason });
-      setFormSuccess('Withdrawal request submitted!');
-      setWithdrawForm({ amount: '', reason: '' });
-      fetchData();
-      setTimeout(() => { setShowWithdraw(false); setFormSuccess(''); }, 1500);
-    } catch (err) {
-      setFormError(err.response?.data?.message || 'Request failed');
-    }
-    setSubmitting(false);
-  };
+  e.preventDefault();
+  setFormError(''); setFormSuccess('');
+  if (!withdrawForm.amount || isNaN(withdrawForm.amount)) { setFormError('Enter a valid amount'); return; }
+  if (!withdrawForm.loanDuration) { setFormError('Please select a repayment duration'); return; }
+  if (Number(withdrawForm.amount) > Math.floor(myContributed * 0.75)) {
+    setFormError(`Maximum loan is 75% of your savings: ${Math.floor(myContributed * 0.75).toLocaleString()} RWF`);
+    return;
+  }
+  setSubmitting(true);
+  try {
+    await loanRequest({ amount: Number(withdrawForm.amount), reason: withdrawForm.reason, loanDuration: Number(withdrawForm.loanDuration) });
+    setFormSuccess('Loan request submitted!');
+    setWithdrawForm({ amount: '', reason: '', loanDuration: '' });
+    fetchData();
+    setTimeout(() => { setShowWithdraw && setShowWithdraw(false); setFormSuccess(''); }, 1500);
+  } catch (err) {
+    setFormError(err.response?.data?.message || 'Request failed');
+  }
+  setSubmitting(false);
+};
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
@@ -107,7 +112,7 @@ const MemberDashboard = () => {
         { label: 'Overview', icon: <Home size={17} />, active: tab === 'overview', onClick: () => setTab('overview') },
         { label: 'My Profile', icon: <User size={17} />, active: tab === 'profile', onClick: () => setTab('profile') },
         { label: 'Contribute', icon: <ArrowUpCircle size={17} />, active: tab === 'contribute', onClick: () => setTab('contribute') },
-        { label: 'Withdraw', icon: <ArrowDownCircle size={17} />, active: tab === 'withdraw', onClick: () => setTab('withdraw') },
+        { label: 'Loan Request', icon: <ArrowDownCircle size={17} />, active: tab === 'loan', onClick: () => setTab('withdraw') },
         { label: 'History', icon: <History size={17} />, active: tab === 'history', onClick: () => setTab('history') },
       ]
     }
@@ -140,17 +145,17 @@ const MemberDashboard = () => {
             </h1>
           </div>
 
-          {fund && <FundHeader name={fund.name} balance={fund.totalBalance} description={fund.description} />}
+         {fund && <FundHeader name={fund.name} description={fund.description} />}
 
           {/* Overview */}
           {tab === 'overview' && (
             <>
-              <div className="stats-grid">
-                <StatCard label="My Balance" value={`${myBalance.toLocaleString()} RWF`} icon={<DollarSign size={22} />} color="gold" />
-                <StatCard label="Total Contributed" value={`${myContributed.toLocaleString()} RWF`} icon={<TrendingUp size={22} />} color="green" />
-                <StatCard label="Pending Requests" value={pendingWithdrawals.length} icon={<ArrowDownCircle size={22} />} color="blue" />
-                <StatCard label="Total Transactions" value={transactions.length} icon={<History size={22} />} color="gold" />
-              </div>
+             <div className="stats-grid">
+  <StatCard label="My Savings" value={`${myContributed.toLocaleString()} RWF`} icon={<TrendingUp size={22} />} color="green" />
+  <StatCard label="Max Loan Eligible" value={`${Math.floor(myContributed * 0.75).toLocaleString()} RWF`} icon={<DollarSign size={22} />} color="gold" />
+  <StatCard label="Pending Loans" value={pendingWithdrawals.length} icon={<ArrowDownCircle size={22} />} color="blue" />
+  <StatCard label="Total Transactions" value={transactions.length} icon={<History size={22} />} color="gold" />
+</div>
 
               <div className="grid-2">
                 <div className="card">
@@ -240,8 +245,8 @@ const MemberDashboard = () => {
                   <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, marginBottom: '16px' }}>Fund Stats</h3>
                   <div style={{ display: 'grid', gap: '12px' }}>
                     {[
-                      { label: 'Balance', value: `${myBalance.toLocaleString()} RWF`, color: 'var(--gold)' },
-                      { label: 'Total Contributed', value: `${myContributed.toLocaleString()} RWF`, color: 'var(--green)' },
+                      { label: 'My Savings', value: `${myContributed.toLocaleString()} RWF`, color: 'var(--green)' },
+                      { label: 'Max Loan', value: `${Math.floor(myContributed * 0.75).toLocaleString()} RWF`, color: 'var(--gold)' },
                       { label: 'Transactions', value: transactions.length, color: 'var(--blue)' },
                     ].map(item => (
                       <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-soft)' }}>
@@ -349,54 +354,108 @@ const MemberDashboard = () => {
             </div>
           )}
 
-          {/* Withdraw Tab */}
+
           {tab === 'withdraw' && (
-            <div style={{ maxWidth: '520px' }}>
-              <div className="card">
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, marginBottom: '6px' }}>
-                  Request Withdrawal
-                </h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '24px' }}>
-                  Available balance: <strong style={{ color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>{myBalance.toLocaleString()} RWF</strong>
-                </p>
+  <div style={{ maxWidth: '520px' }}>
+    <div className="card">
+      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, marginBottom: '6px' }}>
+        Request a Loan
+      </h3>
+      <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '24px' }}>
+        Your total savings: <strong style={{ color: 'var(--gold)', fontFamily: 'var(--font-mono)' }}>{myContributed.toLocaleString()} RWF</strong>
+        &nbsp;·&nbsp; Max loan: <strong style={{ color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>{Math.floor(myContributed * 0.75).toLocaleString()} RWF</strong>
+      </p>
 
-                {pendingWithdrawals.length > 0 && (
-                  <div className="alert alert-info" style={{ marginBottom: '18px' }}>
-                    You have {pendingWithdrawals.length} pending request(s) awaiting approval.
-                  </div>
-                )}
+      {pendingWithdrawals.length > 0 && (
+        <div className="alert alert-info" style={{ marginBottom: '18px' }}>
+          You have {pendingWithdrawals.length} pending loan request(s) awaiting approval.
+        </div>
+      )}
 
-                <form onSubmit={handleWithdraw}>
-                  {formError && <Alert type="error">{formError}</Alert>}
-                  {formSuccess && <Alert type="success">{formSuccess}</Alert>}
-                  <div className="form-group">
-                    <label className="form-label">Amount (RWF) *</label>
-                    <input className="form-input" type="number" placeholder="Enter amount"
-                      min="1" max={myBalance} value={withdrawForm.amount}
-                      onChange={e => setWithdrawForm({ ...withdrawForm, amount: e.target.value })} required
-                      style={{ fontSize: '20px', fontFamily: 'var(--font-mono)', fontWeight: 700 }} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Reason for Withdrawal</label>
-                    <textarea className="form-textarea"
-                      placeholder="Please explain why you need this withdrawal..."
-                      value={withdrawForm.reason}
-                      onChange={e => setWithdrawForm({ ...withdrawForm, reason: e.target.value })}
-                      rows={3} />
-                  </div>
-                  <div style={{
-                    padding: '14px', background: 'var(--surface2)', borderRadius: 'var(--radius-sm)',
-                    marginBottom: '18px', fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)'
-                  }}>
-                    ℹ️ Requests require approval from both the Secretary and President before processing.
-                  </div>
-                  <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%', justifyContent: 'center' }} disabled={submitting}>
-                    {submitting ? 'Submitting...' : <><ArrowDownCircle size={18} /> Submit Request</>}
-                  </button>
-                </form>
-              </div>
+      <form onSubmit={handleWithdraw}>
+        {formError && <Alert type="error">{formError}</Alert>}
+        {formSuccess && <Alert type="success">{formSuccess}</Alert>}
+        <div className="form-group">
+          <label className="form-label">Loan Amount (RWF) *</label>
+          <input className="form-input" type="number" placeholder="Enter amount"
+            min="1" max={Math.floor(myContributed * 0.75)}
+            value={withdrawForm.amount}
+            onChange={e => setWithdrawForm({ ...withdrawForm, amount: e.target.value })} required
+            style={{ fontSize: '20px', fontFamily: 'var(--font-mono)', fontWeight: 700 }} />
+          <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', marginTop: '6px' }}>
+            Maximum: {Math.floor(myContributed * 0.75).toLocaleString()} RWF (75% of your savings)
+          </div>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Repayment Duration *</label>
+          <select className="form-select" value={withdrawForm.loanDuration}
+            onChange={e => setWithdrawForm({ ...withdrawForm, loanDuration: Number(e.target.value) })} required>
+            <option value="">— Select duration —</option>
+            <option value="1">1 Month — 5% interest</option>
+            <option value="2">2 Months — 5% interest</option>
+            <option value="3">3 Months — 10% interest</option>
+            <option value="4">4 Months — 10% interest</option>
+            <option value="5">5 Months — 10% interest</option>
+            <option value="6">6 Months — 10% interest</option>
+          </select>
+        </div>
+
+        {withdrawForm.amount && withdrawForm.loanDuration && (
+          <div style={{
+            padding: '14px', background: 'var(--surface2)', borderRadius: 'var(--radius-sm)',
+            marginBottom: '18px', border: '1px solid var(--border-soft)'
+          }}>
+            <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              Loan Summary
             </div>
-          )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loan Amount</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>{Number(withdrawForm.amount).toLocaleString()} RWF</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Interest Rate</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--orange)' }}>{withdrawForm.loanDuration < 3 ? '5%' : '10%'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Interest Amount</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--orange)' }}>
+                {Math.floor(withdrawForm.amount * (withdrawForm.loanDuration < 3 ? 0.05 : 0.10)).toLocaleString()} RWF
+              </span>
+            </div>
+            <div style={{ height: '1px', background: 'var(--border-soft)', margin: '8px 0' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Total Repayable</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--gold)', fontWeight: 700 }}>
+                {Math.floor(Number(withdrawForm.amount) * (1 + (withdrawForm.loanDuration < 3 ? 0.05 : 0.10))).toLocaleString()} RWF
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div className="form-group">
+          <label className="form-label">Reason for Loan</label>
+          <textarea className="form-textarea"
+            placeholder="Please explain why you need this loan..."
+            value={withdrawForm.reason}
+            onChange={e => setWithdrawForm({ ...withdrawForm, reason: e.target.value })}
+            rows={3} />
+        </div>
+
+        <div style={{
+          padding: '14px', background: 'var(--surface2)', borderRadius: 'var(--radius-sm)',
+          marginBottom: '18px', fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)'
+        }}>
+          ℹ️ Loan requests require approval from both Secretary and President.
+        </div>
+
+        <button type="submit" className="btn btn-primary btn-lg"
+          style={{ width: '100%', justifyContent: 'center' }} disabled={submitting}>
+          {submitting ? 'Submitting...' : <><ArrowDownCircle size={18} /> Submit Loan Request</>}
+        </button>
+      </form>
+    </div>
+  </div>
+)}
 
           {/* History Tab */}
           {tab === 'history' && (

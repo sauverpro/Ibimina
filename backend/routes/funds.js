@@ -7,15 +7,27 @@ const { protect, authorize } = require('../middleware/auth');
 
 router.post('/', protect, authorize('admin'), async (req, res) => {
   try {
-    const { name, presidentEmail } = req.body;
+    const { name, presidentEmail, presidentName, presidentPhone, presidentPassword } = req.body;
     let president = null;
+    
     if (presidentEmail) {
       president = await User.findOne({ email: presidentEmail });
-      if (!president) return res.status(404).json({ message: 'President user not found' });
+      if (!president) {
+        president = await User.create({
+          name: presidentName || 'President',
+          email: presidentEmail,
+          password: presidentPassword || 'ibimina123',
+          phone: presidentPhone || '',
+          role: 'president'
+        });
+      } else {
+        await User.findByIdAndUpdate(president._id, { role: 'president' });
+      }
     }
+
     const fund = await Fund.create({ name, president: president?._id });
     if (president) {
-      await User.findByIdAndUpdate(president._id, { role: 'president', fund: fund._id });
+      await User.findByIdAndUpdate(president._id, { fund: fund._id });
     }
     await Activity.create({ fund: fund._id, user: req.user._id, action: `Fund "${name}" created`, type: 'fund', details: president ? `President: ${president.name}` : '' });
     const populated = await Fund.findById(fund._id).populate('president', 'name email');
@@ -24,7 +36,6 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
-
 router.get('/', protect, authorize('admin'), async (req, res) => {
   try {
     const funds = await Fund.find().populate('president', 'name email').populate('secretary', 'name email').sort('-createdAt');
@@ -57,7 +68,20 @@ router.put('/:id/description', protect, authorize('president'), async (req, res)
     res.status(500).json({ message: err.message });
   }
 });
-
+router.put('/:id/terms', protect, authorize('president'), async (req, res) => {
+  try {
+    const { termsAndConditions, loanDefaultRules } = req.body;
+    const fund = await Fund.findByIdAndUpdate(
+      req.params.id,
+      { termsAndConditions, loanDefaultRules },
+      { new: true }
+    );
+    await Activity.create({ fund: fund._id, user: req.user._id, action: 'Fund terms and conditions updated', type: 'fund' });
+    res.json(fund);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 router.post('/:id/add-user', protect, authorize('president'), async (req, res) => {
   try {
     const { email, role } = req.body;

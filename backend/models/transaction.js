@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const transactionSchema = new mongoose.Schema({
   fund: { type: mongoose.Schema.Types.ObjectId, ref: 'fund', required: true },
   member: { type: mongoose.Schema.Types.ObjectId, ref: 'user', required: true },
-  type: { type: String, enum: ['contribution', 'withdrawal'], required: true },
+  type: { type: String, enum: ['contribution', 'withdrawal', 'loan', 'loan_repayment'], required: true },
   amount: { type: Number, required: true },
   method: { type: String, enum: ['MTN Mobile Money', 'BK Bank', 'Equity Bank', 'Cash'], default: 'Cash' },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
@@ -13,6 +13,11 @@ const transactionSchema = new mongoose.Schema({
   secretaryApproved: { type: Boolean, default: false },
   presidentApproved: { type: Boolean, default: false },
   reference: { type: String, default: '' },
+  // Loan specific fields
+  loanDuration: { type: Number, default: 0 }, // in months
+  interestRate: { type: Number, default: 0 }, // percentage
+  totalRepayable: { type: Number, default: 0 }, // amount + interest
+  dueDate: { type: Date },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });

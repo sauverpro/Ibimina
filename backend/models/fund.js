@@ -11,7 +11,10 @@ const fundSchema = new mongoose.Schema({
   totalWithdrawals: { type: Number, default: 0 },
   currency: { type: String, default: 'RWF' },
   isActive: { type: Boolean, default: true },
+  termsAndConditions: { type: String, default: '' },
+  loanDefaultRules: { type: String, default: '' },
   createdAt: { type: Date, default: Date.now }
+ 
 });
 
 module.exports = mongoose.model('fund', fundSchema);

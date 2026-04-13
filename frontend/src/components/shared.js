@@ -66,7 +66,7 @@ export const Alert = ({ type = 'error', children }) => (
   <div className={`alert alert-${type}`}>{children}</div>
 );
 
-export const FundHeader = ({ name, balance, currency = 'RWF', description }) => (
+export const FundHeader = ({ name, description }) => (
   <div className="fund-header">
     <div>
       <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px' }}>
@@ -78,12 +78,6 @@ export const FundHeader = ({ name, balance, currency = 'RWF', description }) => 
           {description}
         </div>
       )}
-    </div>
-    <div className="fund-header-balance">
-      <div className="fund-balance-label">Total Balance</div>
-      <div className="fund-balance-amount">
-        {Number(balance || 0).toLocaleString()} <span style={{ fontSize: '16px', fontFamily: 'var(--font-mono)' }}>{currency}</span>
-      </div>
     </div>
   </div>
 );

@@ -80,7 +80,50 @@ router.post('/withdraw-request', protect, async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+router.post('/loan-request', protect, async (req, res) => {
+  try {
+    const { amount, reason, loanDuration } = req.body;
+    const user = await User.findById(req.user._id);
+    if (!user.fund) return res.status(400).json({ message: 'Not in a fund' });
 
+    // Check eligibility - must have savings
+    if (user.totalContributed <= 0) {
+      return res.status(400).json({ message: 'You must have active savings to be eligible for a loan' });
+    }
+
+    // Max loan = 75% of total savings
+    const maxLoan = user.totalContributed * 0.75;
+    if (amount > maxLoan) {
+      return res.status(400).json({ message: `Maximum loan amount is 75% of your savings: ${maxLoan.toLocaleString()} RWF` });
+    }
+
+    // Interest rate: 5% under 3 months, 10% over 3 months
+    const interestRate = loanDuration < 3 ? 5 : 10;
+    const interestAmount = (amount * interestRate) / 100;
+    const totalRepayable = amount + interestAmount;
+
+    // Due date
+    const dueDate = new Date();
+    dueDate.setMonth(dueDate.getMonth() + loanDuration);
+
+    const ref = `LN-${Date.now().toString(36).toUpperCase()}`;
+    const transaction = await Transaction.create({
+      fund: user.fund, member: req.user._id, type: 'loan',
+      amount, reason, status: 'pending', reference: ref,
+      loanDuration, interestRate, totalRepayable, dueDate
+    });
+
+    await Activity.create({
+      fund: user.fund, user: req.user._id,
+      action: `${req.user.name} requested a loan of ${amount} RWF for ${loanDuration} months`,
+      type: 'transaction', details: `Interest: ${interestRate}% | Total repayable: ${totalRepayable} RWF`
+    });
+
+    res.status(201).json(transaction);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 router.put('/:id/secretary-approve', protect, authorize('secretary'), async (req, res) => {
   try {
     const transaction = await Transaction.findById(req.params.id).populate('member', 'name');

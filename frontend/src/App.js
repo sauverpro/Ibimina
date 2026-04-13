@@ -6,7 +6,7 @@ import AdminDashboard from './pages/admin/admindashboard';
 import PresidentDashboard from './pages/president/presidentdashboard';
 import SecretaryDashboard from './pages/secretary/secretarydashboard';
 import MemberDashboard from './pages/member/memberdashboard';
-import './index.css';;
+import './index.css';
 
 const PrivateRoute = ({ children, roles }) => {
   const { user, loading } = useAuth();
@@ -36,14 +36,26 @@ const AppRoutes = () => {
   const { user } = useAuth();
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to={`/${user.role === 'admin' ? 'admin' : user.role === 'president' ? 'president' : user.role === 'secretary' ? 'secretary' : 'member'}`} replace /> : <LoginPage />} />
+      <Route path="/login" element={
+        user
+          ? <Navigate to={
+            user.role === 'admin' ? '/admin' :
+            user.role === 'president' ? '/president' :
+            user.role === 'secretary' ? '/secretary' : '/member'
+          } replace />
+          : <LoginPage />
+      } />
       <Route path="/admin" element={<PrivateRoute roles={['admin']}><AdminDashboard /></PrivateRoute>} />
       <Route path="/president" element={<PrivateRoute roles={['president']}><PresidentDashboard /></PrivateRoute>} />
       <Route path="/secretary" element={<PrivateRoute roles={['secretary']}><SecretaryDashboard /></PrivateRoute>} />
       <Route path="/member" element={<PrivateRoute roles={['member']}><MemberDashboard /></PrivateRoute>} />
       <Route path="/" element={
         user
-          ? <Navigate to={user.role === 'admin' ? '/admin' : user.role === 'president' ? '/president' : user.role === 'secretary' ? '/secretary' : '/member'} replace />
+          ? <Navigate to={
+            user.role === 'admin' ? '/admin' :
+            user.role === 'president' ? '/president' :
+            user.role === 'secretary' ? '/secretary' : '/member'
+          } replace />
           : <Navigate to="/login" replace />
       } />
       <Route path="*" element={<Navigate to="/" replace />} />
