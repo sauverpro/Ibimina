@@ -7,7 +7,7 @@ import {
   Plus, Check, RefreshCw, DollarSign, ArrowDownCircle, FileText
 } from 'lucide-react';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 const SecretaryDashboard = () => {
   const [tab, setTab] = useState('overview');
@@ -117,7 +117,7 @@ const SecretaryDashboard = () => {
     const totalContrib = contribs.reduce((s, t) => s + t.amount, 0);
     const totalLoans = loans.reduce((s, t) => s + t.amount, 0);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: 88,
       head: [['Metric', 'Value']],
       body: [
@@ -133,13 +133,13 @@ const SecretaryDashboard = () => {
       margin: { left: 14, right: 14 },
     });
 
-const finalY = doc.previousAutoTable.finalY + 12;
+const finalY = doc.lastAutoTable.finalY + 12;
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(0, 0, 0);
     doc.text('Transaction Records', 14, finalY);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: finalY + 5,
       head: [['Member', 'Type', 'Amount (RWF)', 'Method', 'Status', 'Date']],
       body: transactions.map(tx => [
@@ -157,13 +157,13 @@ const finalY = doc.previousAutoTable.finalY + 12;
       styles: { fontSize: 9 },
     });
 
-   const membersY = doc.previousAutoTable.finalY + 12;
+   const membersY = doc.lastAutoTable.finalY + 12;
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(0, 0, 0);
     doc.text('Member Records', 14, membersY);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: membersY + 5,
       head: [['Name', 'Email', 'Phone', 'Balance (RWF)', 'Total Contributed (RWF)']],
       body: members.map(m => [
