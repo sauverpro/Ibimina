@@ -7,6 +7,7 @@ import PresidentDashboard from './pages/president/presidentdashboard';
 import SecretaryDashboard from './pages/secretary/secretarydashboard';
 import MemberDashboard from './pages/member/memberdashboard';
 import SetupPage from './pages/Setup';
+import PresidentSetup from './pages/PresidentSetup';
 import './index.css';
 
 const PrivateRoute = ({ children, roles }) => {
@@ -52,6 +53,8 @@ const AppRoutes = () => {
       <Route path="/" element={user ? <Navigate to={getHome(user.role)} replace /> : <Navigate to="/login" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
       <Route path="/setup" element={<SetupPage />} /> 
+      <Route path="/president/setup" element={<PresidentSetup />} />
+      <Route path="/president/login" element={<LoginPage />} />
     </Routes>
   );
 };

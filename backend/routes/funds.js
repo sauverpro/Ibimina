@@ -4,24 +4,31 @@ const Fund = require('../models/fund');
 const User = require('../models/user');
 const Activity = require('../models/activity');
 const { protect, authorize } = require('../middleware/auth');
+const { v4: uuidv4 } = require('uuid');
 
 router.post('/', protect, authorize('admin'), async (req, res) => {
   try {
-    const { name, presidentEmail, presidentName, presidentPhone, presidentPassword } = req.body;
+    const { name, presidentEmail, presidentName, presidentPhone } = req.body;
     let president = null;
-    
+    let setupToken = null;
+
     if (presidentEmail) {
       president = await User.findOne({ email: presidentEmail });
+      setupToken = uuidv4();
       if (!president) {
         president = await User.create({
           name: presidentName || 'President',
           email: presidentEmail,
-          password: presidentPassword || 'ibimina123',
+          password: uuidv4(),
           phone: presidentPhone || '',
-          role: 'president'
+          role: 'president',
+          setupToken
         });
       } else {
-        await User.findByIdAndUpdate(president._id, { role: 'president' });
+        await User.findByIdAndUpdate(president._id, { 
+          role: 'president', 
+          setupToken 
+        });
       }
     }
 
@@ -29,9 +36,13 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
     if (president) {
       await User.findByIdAndUpdate(president._id, { fund: fund._id });
     }
-    await Activity.create({ fund: fund._id, user: req.user._id, action: `Fund "${name}" created`, type: 'fund', details: president ? `President: ${president.name}` : '' });
+    await Activity.create({ 
+      fund: fund._id, user: req.user._id, 
+      action: `Fund "${name}" created`, type: 'fund',
+      details: president ? `President: ${president.name}` : '' 
+    });
     const populated = await Fund.findById(fund._id).populate('president', 'name email');
-    res.status(201).json(populated);
+    res.status(201).json({ ...populated._doc, setupToken });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

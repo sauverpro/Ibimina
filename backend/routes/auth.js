@@ -6,6 +6,7 @@ const Activity = require('../models/activity');
 const { protect } = require('../middleware/auth');
 
 const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET || 'ibimina_secret_2024', { expiresIn: '30d' });
+const { v4: uuidv4 } = require('uuid');
 
 router.post('/register', async (req, res) => {
   try {
@@ -64,5 +65,70 @@ router.put('/profile', protect, async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+router.get('/president-setup', async (req, res) => {
+  try {
+    const { token } = req.query;
+    const user = await User.findOne({ setupToken: token, role: 'president' });
+    if (!user) return res.status(404).json({ message: 'Invalid or expired setup link.' });
+    res.json({ name: user.name, email: user.email });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
+// Complete president setup
+router.post('/president-setup', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    const user = await User.findOne({ setupToken: token, role: 'president' });
+    if (!user) return res.status(404).json({ message: 'Invalid or expired setup link.' });
+    user.password = password;
+    user.setupToken = null;
+    await user.save();
+    res.json({ message: 'Password set successfully!' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+router.post('/', protect, authorize('admin'), async (req, res) => {
+  try {
+    const { name, presidentEmail, presidentName, presidentPhone } = req.body;
+    let president = null;
+    let setupToken = null;
+
+    if (presidentEmail) {
+      president = await User.findOne({ email: presidentEmail });
+      setupToken = uuidv4();
+      if (!president) {
+        president = await User.create({
+          name: presidentName || 'President',
+          email: presidentEmail,
+          password: uuidv4(),
+          phone: presidentPhone || '',
+          role: 'president',
+          setupToken
+        });
+      } else {
+        await User.findByIdAndUpdate(president._id, { 
+          role: 'president', 
+          setupToken 
+        });
+      }
+    }
+
+    const fund = await Fund.create({ name, president: president?._id });
+    if (president) {
+      await User.findByIdAndUpdate(president._id, { fund: fund._id });
+    }
+    await Activity.create({ 
+      fund: fund._id, user: req.user._id, 
+      action: `Fund "${name}" created`, type: 'fund',
+      details: president ? `President: ${president.name}` : '' 
+    });
+    const populated = await Fund.findById(fund._id).populate('president', 'name email');
+    res.status(201).json({ ...populated._doc, setupToken });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 module.exports = router;

@@ -14,7 +14,8 @@ const userSchema = new mongoose.Schema({
   balance: { type: Number, default: 0 },
   totalContributed: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true },
-  createdAt: { type: Date, default: Date.now }
+  setupToken: { type: String, default: null },
+  createdAt: { type: Date, default: Date.now },
 });
 
 userSchema.pre('save', async function(next) {

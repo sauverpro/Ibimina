@@ -66,21 +66,28 @@ const AdminDashboard = () => {
 }, []);
 
   const handleCreateFund = async (e) => {
-    e.preventDefault();
-    setFormError(''); setFormSuccess('');
-    setCreating(true);
-    try {
-      await createFund(fundForm);
-      setFormSuccess(`Fund "${fundForm.name}" created successfully!`);
-      setFundForm({ name: '', presidentEmail: '' });
-      fetchData();
-      setTimeout(() => { setShowCreateFund(false); setFormSuccess(''); }, 2000);
-    } catch (err) {
-      setFormError(err.response?.data?.message || 'Failed to create fund');
-    }
-    setCreating(false);
-  };
-
+  e.preventDefault();
+  setFormError(''); setFormSuccess('');
+  setCreating(true);
+  try {
+    const res = await createFund(fundForm);
+    const setupToken = res.data.setupToken;
+    const setupLink = setupToken 
+      ? `${window.location.origin}/president/setup?token=${setupToken}` 
+      : null;
+    setFormSuccess(
+      setupLink 
+        ? `Fund created! President setup link: ${setupLink}` 
+        : `Fund "${fundForm.name}" created successfully!`
+    );
+    setFundForm({ name: '', presidentEmail: '', presidentName: '', presidentPhone: '' });
+    fetchData();
+    setTimeout(() => { setShowCreateFund(false); setFormSuccess(''); }, 8000);
+  } catch (err) {
+    setFormError(err.response?.data?.message || 'Failed to create fund');
+  }
+  setCreating(false);
+};
   const handleDeleteFund = async (id, name) => {
     if (!window.confirm(`Delete fund "${name}"? This cannot be undone.`)) return;
     setDeleting(id);
