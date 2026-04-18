@@ -32,6 +32,7 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
       }
     }
 
+    
     const fund = await Fund.create({ name, president: president?._id });
     if (president) {
       await User.findByIdAndUpdate(president._id, { fund: fund._id });

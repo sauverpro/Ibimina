@@ -90,45 +90,5 @@ router.post('/president-setup', async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
-router.post('/', protect, authorize('admin'), async (req, res) => {
-  try {
-    const { name, presidentEmail, presidentName, presidentPhone } = req.body;
-    let president = null;
-    let setupToken = null;
 
-    if (presidentEmail) {
-      president = await User.findOne({ email: presidentEmail });
-      setupToken = uuidv4();
-      if (!president) {
-        president = await User.create({
-          name: presidentName || 'President',
-          email: presidentEmail,
-          password: uuidv4(),
-          phone: presidentPhone || '',
-          role: 'president',
-          setupToken
-        });
-      } else {
-        await User.findByIdAndUpdate(president._id, { 
-          role: 'president', 
-          setupToken 
-        });
-      }
-    }
-
-    const fund = await Fund.create({ name, president: president?._id });
-    if (president) {
-      await User.findByIdAndUpdate(president._id, { fund: fund._id });
-    }
-    await Activity.create({ 
-      fund: fund._id, user: req.user._id, 
-      action: `Fund "${name}" created`, type: 'fund',
-      details: president ? `President: ${president.name}` : '' 
-    });
-    const populated = await Fund.findById(fund._id).populate('president', 'name email');
-    res.status(201).json({ ...populated._doc, setupToken });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
 module.exports = router;
