@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from '../../components/sidebar';
 import { StatCard, Modal, Alert, ActivityFeed, Badge, LoadingPage } from '../../components/shared';
-import { getFunds, createFund, deleteFund, getAllUsers, getGlobalActivities } from '../../utils/api';
-import { getFunds, createFund, deleteFund, getAllUsers, getGlobalActivities, getFundTransactions } from '../../utils/api';
 import { getFunds, createFund, deleteFund, getAllUsers, getGlobalActivities, getFundTransactions, getFundRequests, updateFundRequest } from '../../utils/api';
 import {
   LayoutDashboard, Folder, Users, Activity,
@@ -21,7 +19,7 @@ const AdminDashboard = () => {
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [fundRequests, setFundRequests] = useState([]);
-const [reqLoading, setReqLoading] = useState(false);
+  const [reqLoading, setReqLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [requests, setRequests] = useState([]);
