@@ -22,7 +22,6 @@ const AdminDashboard = () => {
   const [deleting, setDeleting] = useState(null);
   const [requests, setRequests] = useState([]);
   const [reqLoading, setReqLoading] = useState(false);
-
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -49,7 +48,7 @@ const AdminDashboard = () => {
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { if (tab === 'activity') fetchActivities(); }, [tab, fetchActivities]);
-
+ 
   const fetchRequests = useCallback(async () => {
   setReqLoading(true);
   try {
@@ -70,7 +69,7 @@ const AdminDashboard = () => {
   setFormError(''); setFormSuccess('');
   setCreating(true);
   try {
-    const res = await createFund(fundForm);
+   const res = await createFund(fundForm);
     const setupToken = res.data.setupToken;
     const setupLink = setupToken 
       ? `${window.location.origin}/president/setup?token=${setupToken}` 

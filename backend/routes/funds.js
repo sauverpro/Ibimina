@@ -73,10 +73,10 @@ router.get('/my', protect, async (req, res) => {
 
 router.put('/:id/terms', protect, authorize('president'), async (req, res) => {
   try {
-    const { termsAndConditions, loanDefaultRules } = req.body;
+    const { termsAndConditions, loanDefaultRules, interestRate, maxLoanPercent, maxLoanDuration } = req.body;
     const fund = await Fund.findByIdAndUpdate(
       req.params.id,
-      { termsAndConditions, loanDefaultRules },
+      { termsAndConditions, loanDefaultRules, interestRate, maxLoanPercent, maxLoanDuration },
       { new: true }
     );
     await Activity.create({ fund: fund._id, user: req.user._id, action: 'Fund terms and conditions updated', type: 'fund' });

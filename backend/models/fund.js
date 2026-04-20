@@ -13,8 +13,10 @@ const fundSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   termsAndConditions: { type: String, default: '' },
   loanDefaultRules: { type: String, default: '' },
+  interestRate: { type: Number, default: 10 },
+  maxLoanPercent: { type: Number, default: 75 },
+  maxLoanDuration: { type: Number, default: 6 },
   createdAt: { type: Date, default: Date.now }
- 
 });
 
 module.exports = mongoose.model('fund', fundSchema);

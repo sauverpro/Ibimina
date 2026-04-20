@@ -20,7 +20,7 @@
   --blue-dim: rgba(52,152,219,0.12);
   --orange: #E67E22;
   --font-display: 'Playfair Display', Georgia, serif;
-  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
   --radius: 16px;
   --radius-sm: 10px;
@@ -838,4 +838,4 @@ tbody td:first-child { color: var(--text); font-weight: 500; }
   .page { padding: 20px 16px; }
   .grid-2, .grid-1-2, .grid-2-1 { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
-}
+} 

@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from '../../components/sidebar';
-import { StatCard, Modal, Alert, FundHeader, Badge, PaymentMethodSelector, LoadingPage } from '../../components/shared';
+import { StatCard, Alert, FundHeader, Badge, PaymentMethodSelector, LoadingPage } from '../../components/shared';
 import { useAuth } from '../../context/authcontext';
 import {
   User, Home, ArrowDownCircle, ArrowUpCircle, History,
   DollarSign, TrendingUp, Camera, Save
 } from 'lucide-react';
-import { getMyFund, getMyTransactions, contribute, withdrawRequest, updateProfile, loanRequest } from '../../utils/api';
+import { getMyFund, getMyTransactions, contribute, updateProfile, loanRequest } from '../../utils/api';
 
 const MemberDashboard = () => {
   const { user, refreshUser } = useAuth();
@@ -14,8 +14,6 @@ const MemberDashboard = () => {
   const [fund, setFund] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showContribute, setShowContribute] = useState(false);
-  const [showWithdraw, setShowWithdraw] = useState(false);
   const [contribForm, setContribForm] = useState({ amount: '', method: 'MTN Mobile Money' });
   const [withdrawForm, setWithdrawForm] = useState({ amount: '', reason: '', loanDuration: '' });
   const [profileForm, setProfileForm] = useState({
@@ -48,6 +46,14 @@ const MemberDashboard = () => {
     }
   }, [user]);
 
+  const myContributed = user?.totalContributed || 0;
+  const myBalance = user?.balance || 0;
+  const interestRate = fund?.interestRate || 10;
+  const maxLoanPercent = fund?.maxLoanPercent || 75;
+  const maxLoanDuration = fund?.maxLoanDuration || 6;
+  const maxLoan = Math.floor(myContributed * (maxLoanPercent / 100));
+  const pendingWithdrawals = transactions.filter(t => t.type === 'withdrawal' && t.status === 'pending');
+
   const handleContribute = async (e) => {
     e.preventDefault();
     setFormError(''); setFormSuccess('');
@@ -58,7 +64,7 @@ const MemberDashboard = () => {
       setFormSuccess('Contribution successful!');
       setContribForm({ amount: '', method: 'MTN Mobile Money' });
       fetchData();
-      setTimeout(() => { setShowContribute(false); setFormSuccess(''); }, 1500);
+      setTimeout(() => { setFormSuccess(''); }, 1500);
     } catch (err) {
       setFormError(err.response?.data?.message || 'Contribution failed');
     }
@@ -66,26 +72,26 @@ const MemberDashboard = () => {
   };
 
   const handleWithdraw = async (e) => {
-  e.preventDefault();
-  setFormError(''); setFormSuccess('');
-  if (!withdrawForm.amount || isNaN(withdrawForm.amount)) { setFormError('Enter a valid amount'); return; }
-  if (!withdrawForm.loanDuration) { setFormError('Please select a repayment duration'); return; }
-  if (Number(withdrawForm.amount) > Math.floor(myContributed * 0.75)) {
-    setFormError(`Maximum loan is 75% of your savings: ${Math.floor(myContributed * 0.75).toLocaleString()} RWF`);
-    return;
-  }
-  setSubmitting(true);
-  try {
-    await loanRequest({ amount: Number(withdrawForm.amount), reason: withdrawForm.reason, loanDuration: Number(withdrawForm.loanDuration) });
-    setFormSuccess('Loan request submitted!');
-    setWithdrawForm({ amount: '', reason: '', loanDuration: '' });
-    fetchData();
-    setTimeout(() => { setShowWithdraw && setShowWithdraw(false); setFormSuccess(''); }, 1500);
-  } catch (err) {
-    setFormError(err.response?.data?.message || 'Request failed');
-  }
-  setSubmitting(false);
-};
+    e.preventDefault();
+    setFormError(''); setFormSuccess('');
+    if (!withdrawForm.amount || isNaN(withdrawForm.amount)) { setFormError('Enter a valid amount'); return; }
+    if (!withdrawForm.loanDuration) { setFormError('Please select a repayment duration'); return; }
+    if (Number(withdrawForm.amount) > maxLoan) {
+      setFormError(`Maximum loan is ${maxLoanPercent}% of your savings: ${maxLoan.toLocaleString()} RWF`);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await loanRequest({ amount: Number(withdrawForm.amount), reason: withdrawForm.reason, loanDuration: Number(withdrawForm.loanDuration) });
+      setFormSuccess('Loan request submitted!');
+      setWithdrawForm({ amount: '', reason: '', loanDuration: '' });
+      fetchData();
+      setTimeout(() => { setFormSuccess(''); }, 1500);
+    } catch (err) {
+      setFormError(err.response?.data?.message || 'Request failed');
+    }
+    setSubmitting(false);
+  };
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
@@ -101,9 +107,9 @@ const MemberDashboard = () => {
     setSavingProfile(false);
   };
 
-  const myBalance = user?.balance || 0;
-  const myContributed = user?.totalContributed || 0;
-  const pendingWithdrawals = transactions.filter(t => t.type === 'withdrawal' && t.status === 'pending');
+  const loanAmount = Number(withdrawForm.amount) || 0;
+  const interestAmount = Math.floor(loanAmount * (interestRate / 100));
+  const totalRepayable = loanAmount + interestAmount;
 
   const navItems = [
     {
@@ -112,7 +118,7 @@ const MemberDashboard = () => {
         { label: 'Overview', icon: <Home size={17} />, active: tab === 'overview', onClick: () => setTab('overview') },
         { label: 'My Profile', icon: <User size={17} />, active: tab === 'profile', onClick: () => setTab('profile') },
         { label: 'Contribute', icon: <ArrowUpCircle size={17} />, active: tab === 'contribute', onClick: () => setTab('contribute') },
-        { label: 'Loan Request', icon: <ArrowDownCircle size={17} />, active: tab === 'loan', onClick: () => setTab('withdraw') },
+        { label: 'Loan Request', icon: <ArrowDownCircle size={17} />, active: tab === 'withdraw', onClick: () => setTab('withdraw') },
         { label: 'History', icon: <History size={17} />, active: tab === 'history', onClick: () => setTab('history') },
       ]
     }
@@ -141,36 +147,33 @@ const MemberDashboard = () => {
               {tab === 'overview' ? `Welcome back, ${user?.name?.split(' ')[0]}` :
                 tab === 'profile' ? 'My Profile' :
                   tab === 'contribute' ? 'Make a Contribution' :
-                    tab === 'withdraw' ? 'Withdrawal Request' : 'Transaction History'}
+                    tab === 'withdraw' ? 'Loan Request' : 'Transaction History'}
             </h1>
           </div>
 
-         {fund && <FundHeader name={fund.name} description={fund.description} />}
+          {fund && <FundHeader name={fund.name} description={fund.description} />}
 
           {/* Overview */}
           {tab === 'overview' && (
             <>
-             <div className="stats-grid">
-  <StatCard label="My Savings" value={`${myContributed.toLocaleString()} RWF`} icon={<TrendingUp size={22} />} color="green" />
-  <StatCard label="Max Loan Eligible" value={`${Math.floor(myContributed * 0.75).toLocaleString()} RWF`} icon={<DollarSign size={22} />} color="gold" />
-  <StatCard label="Pending Loans" value={pendingWithdrawals.length} icon={<ArrowDownCircle size={22} />} color="blue" />
-  <StatCard label="Total Transactions" value={transactions.length} icon={<History size={22} />} color="gold" />
-</div>
+              <div className="stats-grid">
+                <StatCard label="My Savings" value={`${myContributed.toLocaleString()} RWF`} icon={<TrendingUp size={22} />} color="green" />
+                <StatCard label="Max Loan Eligible" value={`${maxLoan.toLocaleString()} RWF`} icon={<DollarSign size={22} />} color="gold" />
+                <StatCard label="Pending Loans" value={pendingWithdrawals.length} icon={<ArrowDownCircle size={22} />} color="blue" />
+                <StatCard label="Total Transactions" value={transactions.length} icon={<History size={22} />} color="gold" />
+              </div>
 
               <div className="grid-2">
                 <div className="card">
                   <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, marginBottom: '16px' }}>Quick Actions</h3>
                   <div style={{ display: 'grid', gap: '12px' }}>
-                    <button className="btn btn-primary btn-lg" style={{ justifyContent: 'center' }}
-                      onClick={() => setTab('contribute')}>
+                    <button className="btn btn-primary btn-lg" style={{ justifyContent: 'center' }} onClick={() => setTab('contribute')}>
                       <ArrowUpCircle size={18} /> Contribute to Fund
                     </button>
-                    <button className="btn btn-outline btn-lg" style={{ justifyContent: 'center' }}
-                      onClick={() => setTab('withdraw')}>
-                      <ArrowDownCircle size={18} /> Request Withdrawal
+                    <button className="btn btn-outline btn-lg" style={{ justifyContent: 'center' }} onClick={() => setTab('withdraw')}>
+                      <ArrowDownCircle size={18} /> Request a Loan
                     </button>
-                    <button className="btn btn-outline btn-lg" style={{ justifyContent: 'center' }}
-                      onClick={() => setTab('history')}>
+                    <button className="btn btn-outline btn-lg" style={{ justifyContent: 'center' }} onClick={() => setTab('history')}>
                       <History size={18} /> View History
                     </button>
                   </div>
@@ -179,10 +182,7 @@ const MemberDashboard = () => {
                 <div className="card">
                   <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, marginBottom: '16px' }}>Recent Transactions</h3>
                   {transactions.slice(0, 5).map(tx => (
-                    <div key={tx._id} style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '10px 0', borderBottom: '1px solid var(--border-soft)'
-                    }}>
+                    <div key={tx._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-soft)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div style={{
                           width: '32px', height: '32px', borderRadius: '8px',
@@ -200,10 +200,7 @@ const MemberDashboard = () => {
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <span style={{
-                          fontFamily: 'var(--font-mono)', fontWeight: 700,
-                          color: tx.type === 'contribution' ? 'var(--green)' : 'var(--red)'
-                        }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: tx.type === 'contribution' ? 'var(--green)' : 'var(--red)' }}>
                           {tx.type === 'contribution' ? '+' : '-'}{tx.amount.toLocaleString()}
                         </span>
                         <Badge status={tx.status} />
@@ -220,7 +217,6 @@ const MemberDashboard = () => {
           {tab === 'profile' && (
             <div className="grid-2">
               <div>
-                {/* Profile Hero */}
                 <div className="profile-hero" style={{ marginBottom: '20px' }}>
                   <div className="profile-photo-wrapper">
                     {profileForm.photo ? (
@@ -239,14 +235,13 @@ const MemberDashboard = () => {
                     </div>
                   </div>
                 </div>
-
-                {/* Profile Details */}
                 <div className="card">
                   <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, marginBottom: '16px' }}>Fund Stats</h3>
                   <div style={{ display: 'grid', gap: '12px' }}>
                     {[
                       { label: 'My Savings', value: `${myContributed.toLocaleString()} RWF`, color: 'var(--green)' },
-                      { label: 'Max Loan', value: `${Math.floor(myContributed * 0.75).toLocaleString()} RWF`, color: 'var(--gold)' },
+                      { label: 'Max Loan', value: `${maxLoan.toLocaleString()} RWF`, color: 'var(--gold)' },
+                      { label: 'Interest Rate', value: `${interestRate}%`, color: 'var(--orange)' },
                       { label: 'Transactions', value: transactions.length, color: 'var(--blue)' },
                     ].map(item => (
                       <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-soft)' }}>
@@ -258,7 +253,6 @@ const MemberDashboard = () => {
                 </div>
               </div>
 
-              {/* Edit Profile Form */}
               <div className="card">
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, marginBottom: '20px' }}>Edit Profile</h3>
                 <form onSubmit={handleSaveProfile}>
@@ -266,24 +260,20 @@ const MemberDashboard = () => {
                   {formSuccess && <Alert type="success">{formSuccess}</Alert>}
                   <div className="form-group">
                     <label className="form-label">Full Name</label>
-                    <input className="form-input" value={profileForm.name}
-                      onChange={e => setProfileForm({ ...profileForm, name: e.target.value })} />
+                    <input className="form-input" value={profileForm.name} onChange={e => setProfileForm({ ...profileForm, name: e.target.value })} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Phone Number</label>
-                    <input className="form-input" placeholder="+250 7XX XXX XXX" value={profileForm.phone}
-                      onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })} />
+                    <input className="form-input" placeholder="+250 7XX XXX XXX" value={profileForm.phone} onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })} />
                   </div>
                   <div className="grid-2" style={{ gap: '12px' }}>
                     <div className="form-group">
                       <label className="form-label">Age</label>
-                      <input className="form-input" type="number" placeholder="—" min="18" max="100"
-                        value={profileForm.age} onChange={e => setProfileForm({ ...profileForm, age: e.target.value })} />
+                      <input className="form-input" type="number" placeholder="—" min="18" max="100" value={profileForm.age} onChange={e => setProfileForm({ ...profileForm, age: e.target.value })} />
                     </div>
                     <div className="form-group">
                       <label className="form-label">Gender</label>
-                      <select className="form-select" value={profileForm.gender}
-                        onChange={e => setProfileForm({ ...profileForm, gender: e.target.value })}>
+                      <select className="form-select" value={profileForm.gender} onChange={e => setProfileForm({ ...profileForm, gender: e.target.value })}>
                         <option value="">— Select —</option>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
@@ -293,8 +283,7 @@ const MemberDashboard = () => {
                   </div>
                   <div className="form-group">
                     <label className="form-label"><Camera size={12} style={{ display: 'inline', marginRight: '6px' }} />Photo URL</label>
-                    <input className="form-input" placeholder="https://..." value={profileForm.photo}
-                      onChange={e => setProfileForm({ ...profileForm, photo: e.target.value })} />
+                    <input className="form-input" placeholder="https://..." value={profileForm.photo} onChange={e => setProfileForm({ ...profileForm, photo: e.target.value })} />
                   </div>
                   <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={savingProfile}>
                     {savingProfile ? 'Saving...' : <><Save size={15} /> Save Changes</>}
@@ -308,9 +297,7 @@ const MemberDashboard = () => {
           {tab === 'contribute' && (
             <div style={{ maxWidth: '520px' }}>
               <div className="card">
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, marginBottom: '6px' }}>
-                  Make a Contribution
-                </h3>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, marginBottom: '6px' }}>Make a Contribution</h3>
                 <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '24px' }}>
                   Your current balance: <strong style={{ color: 'var(--gold)', fontFamily: 'var(--font-mono)' }}>{myBalance.toLocaleString()} RWF</strong>
                 </p>
@@ -319,20 +306,17 @@ const MemberDashboard = () => {
                   {formSuccess && <Alert type="success">{formSuccess}</Alert>}
                   <div className="form-group">
                     <label className="form-label">Amount (RWF) *</label>
-                    <input className="form-input" type="number" placeholder="Enter amount"
-                      min="1" value={contribForm.amount}
-                      onChange={e => setContribForm({ ...contribForm, amount: e.target.value })} required
+                    <input className="form-input" type="number" placeholder="Enter amount" min="1"
+                      value={contribForm.amount} onChange={e => setContribForm({ ...contribForm, amount: e.target.value })} required
                       style={{ fontSize: '20px', fontFamily: 'var(--font-mono)', fontWeight: 700 }} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Payment Method</label>
                     <PaymentMethodSelector selected={contribForm.method} onChange={m => setContribForm({ ...contribForm, method: m })} />
                   </div>
-
-                  {/* Method details */}
                   {contribForm.method === 'MTN Mobile Money' && (
                     <div className="alert alert-info" style={{ marginBottom: '18px' }}>
-                      📱 Send to: <strong>0788-IBIMINA</strong> · Code: <strong>*182#</strong>
+                      📱 Send to: <strong>+250-IBIMINA</strong> · Code: <strong>*182#</strong>
                     </div>
                   )}
                   {contribForm.method === 'BK Bank' && (
@@ -345,7 +329,6 @@ const MemberDashboard = () => {
                       🏦 Equity Account: <strong>6022-IBIMINA-FND</strong> · Branch: Nyarugenge
                     </div>
                   )}
-
                   <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%', justifyContent: 'center' }} disabled={submitting}>
                     {submitting ? 'Processing...' : <><ArrowUpCircle size={18} /> Confirm Contribution</>}
                   </button>
@@ -354,115 +337,99 @@ const MemberDashboard = () => {
             </div>
           )}
 
-
+          {/* Loan Request Tab */}
           {tab === 'withdraw' && (
-  <div style={{ maxWidth: '520px' }}>
-    <div className="card">
-      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, marginBottom: '6px' }}>
-        Request a Loan
-      </h3>
-      <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '24px' }}>
-        Your total savings: <strong style={{ color: 'var(--gold)', fontFamily: 'var(--font-mono)' }}>{myContributed.toLocaleString()} RWF</strong>
-        &nbsp;·&nbsp; Max loan: <strong style={{ color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>{Math.floor(myContributed * 0.75).toLocaleString()} RWF</strong>
-      </p>
+            <div style={{ maxWidth: '520px' }}>
+              <div className="card">
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, marginBottom: '6px' }}>Request a Loan</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '24px' }}>
+                  Your total savings: <strong style={{ color: 'var(--gold)', fontFamily: 'var(--font-mono)' }}>{myContributed.toLocaleString()} RWF</strong>
+                  &nbsp;·&nbsp; Max loan: <strong style={{ color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>{maxLoan.toLocaleString()} RWF</strong>
+                </p>
 
-      {pendingWithdrawals.length > 0 && (
-        <div className="alert alert-info" style={{ marginBottom: '18px' }}>
-          You have {pendingWithdrawals.length} pending loan request(s) awaiting approval.
-        </div>
-      )}
+                {pendingWithdrawals.length > 0 && (
+                  <div className="alert alert-info" style={{ marginBottom: '18px' }}>
+                    You have {pendingWithdrawals.length} pending loan request(s) awaiting approval.
+                  </div>
+                )}
 
-      <form onSubmit={handleWithdraw}>
-        {formError && <Alert type="error">{formError}</Alert>}
-        {formSuccess && <Alert type="success">{formSuccess}</Alert>}
-        <div className="form-group">
-          <label className="form-label">Loan Amount (RWF) *</label>
-          <input className="form-input" type="number" placeholder="Enter amount"
-            min="1" max={Math.floor(myContributed * 0.75)}
-            value={withdrawForm.amount}
-            onChange={e => setWithdrawForm({ ...withdrawForm, amount: e.target.value })} required
-            style={{ fontSize: '20px', fontFamily: 'var(--font-mono)', fontWeight: 700 }} />
-          <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', marginTop: '6px' }}>
-            Maximum: {Math.floor(myContributed * 0.75).toLocaleString()} RWF (75% of your savings)
-          </div>
-        </div>
-        <div className="form-group">
-          <label className="form-label">Repayment Duration *</label>
-          <select className="form-select" value={withdrawForm.loanDuration}
-            onChange={e => setWithdrawForm({ ...withdrawForm, loanDuration: Number(e.target.value) })} required>
-            <option value="">— Select duration —</option>
-            <option value="1">1 Month — 5% interest</option>
-            <option value="2">2 Months — 5% interest</option>
-            <option value="3">3 Months — 10% interest</option>
-            <option value="4">4 Months — 10% interest</option>
-            <option value="5">5 Months — 10% interest</option>
-            <option value="6">6 Months — 10% interest</option>
-          </select>
-        </div>
+                <form onSubmit={handleWithdraw}>
+                  {formError && <Alert type="error">{formError}</Alert>}
+                  {formSuccess && <Alert type="success">{formSuccess}</Alert>}
 
-        {withdrawForm.amount && withdrawForm.loanDuration && (
-          <div style={{
-            padding: '14px', background: 'var(--surface2)', borderRadius: 'var(--radius-sm)',
-            marginBottom: '18px', border: '1px solid var(--border-soft)'
-          }}>
-            <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>
-              Loan Summary
+                  <div className="form-group">
+                    <label className="form-label">Loan Amount (RWF) *</label>
+                    <input className="form-input" type="number" placeholder="Enter amount"
+                      min="1" max={maxLoan}
+                      value={withdrawForm.amount}
+                      onChange={e => setWithdrawForm({ ...withdrawForm, amount: e.target.value })} required
+                      style={{ fontSize: '20px', fontFamily: 'var(--font-mono)', fontWeight: 700 }} />
+                    <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', marginTop: '6px' }}>
+                      Maximum: {maxLoan.toLocaleString()} RWF ({maxLoanPercent}% of your savings)
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Repayment Duration *</label>
+                    <select className="form-select" value={withdrawForm.loanDuration}
+                      onChange={e => setWithdrawForm({ ...withdrawForm, loanDuration: Number(e.target.value) })} required>
+                      <option value="">— Select duration —</option>
+                      {Array.from({ length: maxLoanDuration }, (_, i) => i + 1).map(n => (
+                        <option key={n} value={n}>{n} Month{n > 1 ? 's' : ''} — {interestRate}% interest</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {withdrawForm.amount && withdrawForm.loanDuration && (
+                    <div style={{ padding: '14px', background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', marginBottom: '18px', border: '1px solid var(--border-soft)' }}>
+                      <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        Loan Summary
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loan Amount</span>
+                        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>{loanAmount.toLocaleString()} RWF</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Interest Rate</span>
+                        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--orange)' }}>{interestRate}%</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Interest Amount</span>
+                        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--orange)' }}>{interestAmount.toLocaleString()} RWF</span>
+                      </div>
+                      <div style={{ height: '1px', background: 'var(--border-soft)', margin: '8px 0' }} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Total Repayable</span>
+                        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--gold)', fontWeight: 700 }}>{totalRepayable.toLocaleString()} RWF</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="form-group">
+                    <label className="form-label">Reason for Loan</label>
+                    <textarea className="form-textarea"
+                      placeholder="Please explain why you need this loan..."
+                      value={withdrawForm.reason}
+                      onChange={e => setWithdrawForm({ ...withdrawForm, reason: e.target.value })}
+                      rows={3} />
+                  </div>
+
+                  <div style={{ padding: '14px', background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', marginBottom: '18px', fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    ℹ️ Loan requests require approval from both Secretary and President.
+                  </div>
+
+                  <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%', justifyContent: 'center' }} disabled={submitting}>
+                    {submitting ? 'Submitting...' : <><ArrowDownCircle size={18} /> Submit Loan Request</>}
+                  </button>
+                </form>
+              </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loan Amount</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>{Number(withdrawForm.amount).toLocaleString()} RWF</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Interest Rate</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--orange)' }}>{withdrawForm.loanDuration < 3 ? '5%' : '10%'}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Interest Amount</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--orange)' }}>
-                {Math.floor(withdrawForm.amount * (withdrawForm.loanDuration < 3 ? 0.05 : 0.10)).toLocaleString()} RWF
-              </span>
-            </div>
-            <div style={{ height: '1px', background: 'var(--border-soft)', margin: '8px 0' }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Total Repayable</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--gold)', fontWeight: 700 }}>
-                {Math.floor(Number(withdrawForm.amount) * (1 + (withdrawForm.loanDuration < 3 ? 0.05 : 0.10))).toLocaleString()} RWF
-              </span>
-            </div>
-          </div>
-        )}
-
-        <div className="form-group">
-          <label className="form-label">Reason for Loan</label>
-          <textarea className="form-textarea"
-            placeholder="Please explain why you need this loan..."
-            value={withdrawForm.reason}
-            onChange={e => setWithdrawForm({ ...withdrawForm, reason: e.target.value })}
-            rows={3} />
-        </div>
-
-        <div style={{
-          padding: '14px', background: 'var(--surface2)', borderRadius: 'var(--radius-sm)',
-          marginBottom: '18px', fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)'
-        }}>
-          ℹ️ Loan requests require approval from both Secretary and President.
-        </div>
-
-        <button type="submit" className="btn btn-primary btn-lg"
-          style={{ width: '100%', justifyContent: 'center' }} disabled={submitting}>
-          {submitting ? 'Submitting...' : <><ArrowDownCircle size={18} /> Submit Loan Request</>}
-        </button>
-      </form>
-    </div>
-  </div>
-)}
+          )}
 
           {/* History Tab */}
           {tab === 'history' && (
             <div className="card">
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, marginBottom: '20px' }}>
-                My Transaction History
-              </h3>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, marginBottom: '20px' }}>My Transaction History</h3>
               {transactions.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-icon">📋</div>
@@ -479,10 +446,7 @@ const MemberDashboard = () => {
                       {transactions.map(tx => (
                         <tr key={tx._id}>
                           <td><Badge status={tx.type} /></td>
-                          <td style={{
-                            fontFamily: 'var(--font-mono)', fontWeight: 700,
-                            color: tx.type === 'contribution' ? 'var(--green)' : 'var(--red)'
-                          }}>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: tx.type === 'contribution' ? 'var(--green)' : 'var(--red)' }}>
                             {tx.type === 'contribution' ? '+' : '-'}{tx.amount.toLocaleString()} RWF
                           </td>
                           <td style={{ fontSize: '12px' }}>{tx.method || '—'}</td>
@@ -497,6 +461,7 @@ const MemberDashboard = () => {
               )}
             </div>
           )}
+
         </div>
       </div>
     </div>
