@@ -52,6 +52,8 @@ export const loanRequest = (data) => API.post('/transactions/loan-request', data
 export const secretaryApprove = (id) => API.put(`/transactions/${id}/secretary-approve`);
 export const presidentAction = (id, data) => API.put(`/transactions/${id}/president-action`, data);
 export const recordPayment = (data) => API.post('/transactions/record-payment', data);
+export const getFundRequests = () => API.get('/auth/fund-requests');
+export const updateFundRequest = (id, data) => API.put(`/auth/fund-requests/${id}`, data);
 
 // Activities
 export const getFundActivities = (fundId) => API.get(`/activities/fund/${fundId}`);

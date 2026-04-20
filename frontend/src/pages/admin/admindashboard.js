@@ -3,6 +3,7 @@ import Sidebar from '../../components/sidebar';
 import { StatCard, Modal, Alert, ActivityFeed, Badge, LoadingPage } from '../../components/shared';
 import { getFunds, createFund, deleteFund, getAllUsers, getGlobalActivities } from '../../utils/api';
 import { getFunds, createFund, deleteFund, getAllUsers, getGlobalActivities, getFundTransactions } from '../../utils/api';
+import { getFunds, createFund, deleteFund, getAllUsers, getGlobalActivities, getFundTransactions, getFundRequests, updateFundRequest } from '../../utils/api';
 import {
   LayoutDashboard, Folder, Users, Activity,
   Plus, Trash2, RefreshCw, DollarSign, TrendingUp, Shield, ClipboardList
@@ -19,6 +20,8 @@ const AdminDashboard = () => {
   const [fundForm, setFundForm] = useState({ name: '', presidentEmail: '', presidentName: '', presidentPhone: '' });
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
+  const [fundRequests, setFundRequests] = useState([]);
+const [reqLoading, setReqLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [requests, setRequests] = useState([]);
@@ -88,6 +91,17 @@ const AdminDashboard = () => {
   }
   setCreating(false);
 };
+const fetchRequests = useCallback(async () => {
+  setReqLoading(true);
+  try {
+    const res = await getFundRequests();
+    setFundRequests(res.data || []);
+  } catch (e) {}
+  setReqLoading(false);
+}, []);
+
+useEffect(() => { if (tab === 'requests') fetchRequests(); }, [tab, fetchRequests]);
+
   const handleDeleteFund = async (id, name) => {
     if (!window.confirm(`Delete fund "${name}"? This cannot be undone.`)) return;
     setDeleting(id);
@@ -381,51 +395,68 @@ const AdminDashboard = () => {
   </Modal>
 )}
 {tab === 'requests' && (
-  <div className="card">
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+  <div>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
       <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700 }}>
-        All Pending Requests
+        Fund Requests ({fundRequests.filter(r => r.status === 'pending').length} pending)
       </h3>
       <button className="btn btn-outline btn-sm" onClick={fetchRequests}>
         <RefreshCw size={13} /> Refresh
       </button>
     </div>
-    {reqLoading ? <LoadingPage /> : requests.length === 0 ? (
-      <div className="empty-state">
-        <div className="empty-icon">✅</div>
-        <div className="empty-title">No pending requests</div>
-        <div className="empty-sub">All requests have been processed</div>
+    {reqLoading ? <LoadingPage /> : fundRequests.length === 0 ? (
+      <div className="card">
+        <div className="empty-state">
+          <div className="empty-icon">📬</div>
+          <div className="empty-title">No fund requests yet</div>
+          <div className="empty-sub">New requests from Get Started page will appear here</div>
+        </div>
       </div>
     ) : (
-      <div className="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Member</th>
-              <th>Fund</th>
-              <th>Type</th>
-              <th>Amount</th>
-              <th>Reason</th>
-              <th>Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {requests.map(tx => (
-              <tr key={tx._id}>
-                <td>{tx.member?.name}</td>
-                <td style={{ color: 'var(--gold)', fontFamily: 'var(--font-mono)', fontSize: '12px' }}>{tx.fundName}</td>
-                <td><Badge status={tx.type} /></td>
-                <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--gold)', fontWeight: 600 }}>
-                  {tx.amount?.toLocaleString()} RWF
-                </td>
-                <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{tx.reason || '—'}</td>
-                <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
-                  {new Date(tx.createdAt).toLocaleDateString()}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div style={{ display: 'grid', gap: '16px' }}>
+        {fundRequests.map(req => (
+          <div key={req._id} className="card card-gold" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{
+                width: '48px', height: '48px', borderRadius: '12px',
+                background: 'var(--gold-dim)', border: '1px solid var(--border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: 'var(--font-display)', fontSize: '20px', color: 'var(--gold)', fontWeight: 900
+              }}>
+                {req.fundName?.[0]?.toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700 }}>{req.fundName}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                  <span>📧 {req.email}</span>
+                  <span>📱 {req.phone}</span>
+                  <span>🏢 {req.businessType}</span>
+                </div>
+                <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginTop: '4px' }}>
+                  {new Date(req.createdAt).toLocaleDateString()}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span className={`badge ${req.status === 'pending' ? 'badge-pending' : req.status === 'approved' ? 'badge-approved' : 'badge-rejected'}`}>
+                {req.status}
+              </span>
+              {req.status === 'pending' && (
+                <button className="btn btn-primary btn-sm" onClick={() => {
+                  setFundForm({
+                    name: req.fundName,
+                    presidentEmail: req.email,
+                    presidentName: '',
+                    presidentPhone: req.phone,
+                  });
+                  setShowCreateFund(true);
+                }}>
+                  <Plus size={13} /> Create Fund
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     )}
   </div>

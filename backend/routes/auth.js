@@ -62,6 +62,16 @@ router.post('/fund-request', async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+router.get('/fund-requests', protect, authorize('admin'), async (req, res) => {
+  try {
+    const FundRequest = require('../models/fundrequest');
+    const requests = await FundRequest.find().sort('-createdAt');
+    res.json(requests);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 router.get('/me', protect, async (req, res) => {
   const user = await User.findById(req.user._id).populate('fund', 'name totalBalance description');
   res.json(user);
