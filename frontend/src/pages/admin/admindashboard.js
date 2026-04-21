@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from '../../components/sidebar';
 import { StatCard, Modal, Alert, ActivityFeed, Badge, LoadingPage } from '../../components/shared';
-import { getFunds, createFund, deleteFund, getAllUsers, getGlobalActivities, getFundTransactions, getFundRequests, updateFundRequest } from '../../utils/api';
+import { getFunds, createFund, deleteFund, getAllUsers, getGlobalActivities, getFundRequests, updateFundRequest } from '../../utils/api';
 import {
   LayoutDashboard, Folder, Users, Activity,
   Plus, Trash2, RefreshCw, DollarSign, TrendingUp, Shield, ClipboardList
@@ -22,6 +22,7 @@ const AdminDashboard = () => {
   const [reqLoading, setReqLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(null);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -46,57 +47,42 @@ const AdminDashboard = () => {
     setActLoading(false);
   }, []);
 
+  const fetchRequests = useCallback(async () => {
+    setReqLoading(true);
+    try {
+      const res = await getFundRequests();
+      setFundRequests(res.data || []);
+    } catch (e) {}
+    setReqLoading(false);
+  }, []);
+
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { if (tab === 'activity') fetchActivities(); }, [tab, fetchActivities]);
- 
-  const fetchRequests = useCallback(async () => {
-  setReqLoading(true);
-  try {
-    const fundsRes = await getFunds();
-    const allRequests = [];
-    for (const fund of fundsRes.data) {
-      const txRes = await getFundTransactions(fund._id);
-      const pending = txRes.data.filter(t => t.status === 'pending');
-      pending.forEach(t => allRequests.push({ ...t, fundName: fund.name }));
-    }
-    setRequests(allRequests);
-  } catch (e) {}
-  setReqLoading(false);
-}, []);
+  useEffect(() => { if (tab === 'requests') fetchRequests(); }, [tab, fetchRequests]);
 
   const handleCreateFund = async (e) => {
-  e.preventDefault();
-  setFormError(''); setFormSuccess('');
-  setCreating(true);
-  try {
-   const res = await createFund(fundForm);
-    const setupToken = res.data.setupToken;
-    const setupLink = setupToken 
-      ? `${window.location.origin}/president/setup?token=${setupToken}` 
-      : null;
-    setFormSuccess(
-      setupLink 
-        ? `Fund created! President setup link: ${setupLink}` 
-        : `Fund "${fundForm.name}" created successfully!`
-    );
-    setFundForm({ name: '', presidentEmail: '', presidentName: '', presidentPhone: '' });
-    fetchData();
-    setTimeout(() => { setShowCreateFund(false); setFormSuccess(''); }, 8000);
-  } catch (err) {
-    setFormError(err.response?.data?.message || 'Failed to create fund');
-  }
-  setCreating(false);
-};
-const fetchRequests = useCallback(async () => {
-  setReqLoading(true);
-  try {
-    const res = await getFundRequests();
-    setFundRequests(res.data || []);
-  } catch (e) {}
-  setReqLoading(false);
-}, []);
-
-useEffect(() => { if (tab === 'requests') fetchRequests(); }, [tab, fetchRequests]);
+    e.preventDefault();
+    setFormError(''); setFormSuccess('');
+    setCreating(true);
+    try {
+      const res = await createFund(fundForm);
+      const setupToken = res.data.setupToken;
+      const setupLink = setupToken
+        ? `${window.location.origin}/president/setup?token=${setupToken}`
+        : null;
+      setFormSuccess(
+        setupLink
+          ? `Fund created! President setup link: ${setupLink}`
+          : `Fund "${fundForm.name}" created successfully!`
+      );
+      setFundForm({ name: '', presidentEmail: '', presidentName: '', presidentPhone: '' });
+      fetchData();
+      setTimeout(() => { setShowCreateFund(false); setFormSuccess(''); }, 8000);
+    } catch (err) {
+      setFormError(err.response?.data?.message || 'Failed to create fund');
+    }
+    setCreating(false);
+  };
 
   const handleDeleteFund = async (id, name) => {
     if (!window.confirm(`Delete fund "${name}"? This cannot be undone.`)) return;
@@ -112,17 +98,17 @@ useEffect(() => { if (tab === 'requests') fetchRequests(); }, [tab, fetchRequest
   const totalContributions = funds.reduce((s, f) => s + (f.totalContributions || 0), 0);
 
   const navItems = [
-  {
-    label: 'Navigation',
-    items: [
-      { label: 'Overview', icon: <LayoutDashboard size={17} />, active: tab === 'overview', onClick: () => setTab('overview') },
-      { label: 'Funds', icon: <Folder size={17} />, active: tab === 'funds', onClick: () => setTab('funds') },
-      { label: 'Users', icon: <Users size={17} />, active: tab === 'users', onClick: () => setTab('users') },
-      { label: 'Requests', icon: <ClipboardList size={17} />, active: tab === 'requests', onClick: () => setTab('requests') },
-      { label: 'Activity Log', icon: <Activity size={17} />, active: tab === 'activity', onClick: () => setTab('activity') },
-    ]
-  }
-];
+    {
+      label: 'Navigation',
+      items: [
+        { label: 'Overview', icon: <LayoutDashboard size={17} />, active: tab === 'overview', onClick: () => setTab('overview') },
+        { label: 'Funds', icon: <Folder size={17} />, active: tab === 'funds', onClick: () => setTab('funds') },
+        { label: 'Users', icon: <Users size={17} />, active: tab === 'users', onClick: () => setTab('users') },
+        { label: 'Requests', icon: <ClipboardList size={17} />, active: tab === 'requests', onClick: () => setTab('requests') },
+        { label: 'Activity Log', icon: <Activity size={17} />, active: tab === 'activity', onClick: () => setTab('activity') },
+      ]
+    }
+  ];
 
   if (loading) return (
     <div className="app-layout">
@@ -332,6 +318,74 @@ useEffect(() => { if (tab === 'requests') fetchRequests(); }, [tab, fetchRequest
             </div>
           )}
 
+          {tab === 'requests' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700 }}>
+                  Fund Requests ({fundRequests.filter(r => r.status === 'pending').length} pending)
+                </h3>
+                <button className="btn btn-outline btn-sm" onClick={fetchRequests}>
+                  <RefreshCw size={13} /> Refresh
+                </button>
+              </div>
+              {reqLoading ? <LoadingPage /> : fundRequests.length === 0 ? (
+                <div className="card">
+                  <div className="empty-state">
+                    <div className="empty-icon">📬</div>
+                    <div className="empty-title">No fund requests yet</div>
+                    <div className="empty-sub">New requests from Get Started page will appear here</div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: '16px' }}>
+                  {fundRequests.map(req => (
+                    <div key={req._id} className="card card-gold" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{
+                          width: '48px', height: '48px', borderRadius: '12px',
+                          background: 'var(--gold-dim)', border: '1px solid var(--border)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontFamily: 'var(--font-display)', fontSize: '20px', color: 'var(--gold)', fontWeight: 900
+                        }}>
+                          {req.fundName?.[0]?.toUpperCase()}
+                        </div>
+                        <div>
+                          <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700 }}>{req.fundName}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                            <span>📧 {req.email}</span>
+                            <span>📱 {req.phone}</span>
+                            <span>🏢 {req.businessType}</span>
+                          </div>
+                          <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginTop: '4px' }}>
+                            {new Date(req.createdAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span className={`badge ${req.status === 'pending' ? 'badge-pending' : req.status === 'approved' ? 'badge-approved' : 'badge-rejected'}`}>
+                          {req.status}
+                        </span>
+                        {req.status === 'pending' && (
+                          <button className="btn btn-primary btn-sm" onClick={() => {
+                            setFundForm({
+                              name: req.fundName,
+                              presidentEmail: req.email,
+                              presidentName: '',
+                              presidentPhone: req.phone,
+                            });
+                            setShowCreateFund(true);
+                          }}>
+                            <Plus size={13} /> Create Fund
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {tab === 'activity' && (
             <div className="card">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
@@ -343,120 +397,53 @@ useEffect(() => { if (tab === 'requests') fetchRequests(); }, [tab, fetchRequest
               <ActivityFeed activities={activities} loading={actLoading} />
             </div>
           )}
+
         </div>
       </div>
 
-     {showCreateFund && (
-  <Modal
-    title="Create New Fund"
-    subtitle="Set up a new community savings fund"
-    onClose={() => { setShowCreateFund(false); setFormError(''); setFormSuccess(''); }}
-  >
-    <form onSubmit={handleCreateFund}>
-      {formError && <Alert type="error">{formError}</Alert>}
-      {formSuccess && <Alert type="success">{formSuccess}</Alert>}
-      <div className="form-group">
-        <label className="form-label">Fund Name *</label>
-        <input className="form-input" placeholder="e.g. Kigali Savings Circle"
-          value={fundForm.name} onChange={e => setFundForm({ ...fundForm, name: e.target.value })} required />
-      </div>
-      <div style={{ borderTop: '1px solid var(--border-soft)', marginTop: '8px', paddingTop: '16px' }}>
-        <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>
-          President Details (Optional)
-        </div>
-        <div className="form-group">
-          <label className="form-label">President Full Name</label>
-          <input className="form-input" placeholder="John Doe"
-            value={fundForm.presidentName} onChange={e => setFundForm({ ...fundForm, presidentName: e.target.value })} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">President Email</label>
-          <input className="form-input" type="email" placeholder="president@email.com"
-            value={fundForm.presidentEmail} onChange={e => setFundForm({ ...fundForm, presidentEmail: e.target.value })} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">President Phone</label>
-          <input className="form-input" placeholder="+250 7XX XXX XXX"
-            value={fundForm.presidentPhone} onChange={e => setFundForm({ ...fundForm, presidentPhone: e.target.value })} />
-        </div>
-        
-      </div>
-      <div className="modal-actions">
-        <button type="button" className="btn btn-outline" onClick={() => setShowCreateFund(false)}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={creating}>
-          {creating ? 'Creating...' : <><Plus size={15} /> Create Fund</>}
-        </button>
-      </div>
-    </form>
-  </Modal>
-)}
-{tab === 'requests' && (
-  <div>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700 }}>
-        Fund Requests ({fundRequests.filter(r => r.status === 'pending').length} pending)
-      </h3>
-      <button className="btn btn-outline btn-sm" onClick={fetchRequests}>
-        <RefreshCw size={13} /> Refresh
-      </button>
-    </div>
-    {reqLoading ? <LoadingPage /> : fundRequests.length === 0 ? (
-      <div className="card">
-        <div className="empty-state">
-          <div className="empty-icon">📬</div>
-          <div className="empty-title">No fund requests yet</div>
-          <div className="empty-sub">New requests from Get Started page will appear here</div>
-        </div>
-      </div>
-    ) : (
-      <div style={{ display: 'grid', gap: '16px' }}>
-        {fundRequests.map(req => (
-          <div key={req._id} className="card card-gold" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <div style={{
-                width: '48px', height: '48px', borderRadius: '12px',
-                background: 'var(--gold-dim)', border: '1px solid var(--border)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: 'var(--font-display)', fontSize: '20px', color: 'var(--gold)', fontWeight: 900
-              }}>
-                {req.fundName?.[0]?.toUpperCase()}
+      {showCreateFund && (
+        <Modal
+          title="Create New Fund"
+          subtitle="Set up a new community savings fund"
+          onClose={() => { setShowCreateFund(false); setFormError(''); setFormSuccess(''); }}
+        >
+          <form onSubmit={handleCreateFund}>
+            {formError && <Alert type="error">{formError}</Alert>}
+            {formSuccess && <Alert type="success">{formSuccess}</Alert>}
+            <div className="form-group">
+              <label className="form-label">Fund Name *</label>
+              <input className="form-input" placeholder="e.g. Kigali Savings Circle"
+                value={fundForm.name} onChange={e => setFundForm({ ...fundForm, name: e.target.value })} required />
+            </div>
+            <div style={{ borderTop: '1px solid var(--border-soft)', marginTop: '8px', paddingTop: '16px' }}>
+              <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                President Details (Optional)
               </div>
-              <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700 }}>{req.fundName}</div>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                  <span>📧 {req.email}</span>
-                  <span>📱 {req.phone}</span>
-                  <span>🏢 {req.businessType}</span>
-                </div>
-                <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginTop: '4px' }}>
-                  {new Date(req.createdAt).toLocaleDateString()}
-                </div>
+              <div className="form-group">
+                <label className="form-label">President Full Name</label>
+                <input className="form-input" placeholder="John Doe"
+                  value={fundForm.presidentName} onChange={e => setFundForm({ ...fundForm, presidentName: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">President Email</label>
+                <input className="form-input" type="email" placeholder="president@email.com"
+                  value={fundForm.presidentEmail} onChange={e => setFundForm({ ...fundForm, presidentEmail: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">President Phone</label>
+                <input className="form-input" placeholder="+250 7XX XXX XXX"
+                  value={fundForm.presidentPhone} onChange={e => setFundForm({ ...fundForm, presidentPhone: e.target.value })} />
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span className={`badge ${req.status === 'pending' ? 'badge-pending' : req.status === 'approved' ? 'badge-approved' : 'badge-rejected'}`}>
-                {req.status}
-              </span>
-              {req.status === 'pending' && (
-                <button className="btn btn-primary btn-sm" onClick={() => {
-                  setFundForm({
-                    name: req.fundName,
-                    presidentEmail: req.email,
-                    presidentName: '',
-                    presidentPhone: req.phone,
-                  });
-                  setShowCreateFund(true);
-                }}>
-                  <Plus size={13} /> Create Fund
-                </button>
-              )}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-outline" onClick={() => setShowCreateFund(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={creating}>
+                {creating ? 'Creating...' : <><Plus size={15} /> Create Fund</>}
+              </button>
             </div>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-)}
+          </form>
+        </Modal>
+      )}
     </div>
   );
 };
